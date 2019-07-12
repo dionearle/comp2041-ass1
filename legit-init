@@ -1,0 +1,25 @@
+#!/bin/dash
+
+# initial test to ensure the correct arguments are given
+if [ $# -ne 0 ]
+then
+    echo "usage: legit-init" >&2
+    exit 1
+fi
+
+# we first test if the .legit directory alread exists
+if [ -d ".legit" ]
+then
+    # if it does, then we simply print an error message to and exit
+    echo "legit-init: error: .legit already exists" >&2
+    exit 1
+else
+    # if it doesn't, then we want to create an empty legit repository.
+    # this involves creating the .legit directory, alongside creating 
+    #the initial files and directories within it
+    mkdir ".legit"
+    
+    # finally it prints a success message and exits
+    echo "Initialized empty legit repository in .legit"
+    exit 0
+fi
