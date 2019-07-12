@@ -1,0 +1,94 @@
+#!/bin/dash
+
+# before we can commit files from the index, we need to make sure the .legit directory exists
+if [ ! -d ".legit" ]
+then  
+    # if it doesn't exist, we print an error message and exit
+    echo "legit-commit: error: no .legit directory containing legit repository exists" >&2
+    exit 1
+fi
+
+# we then test to ensure the correct arguments are given
+if [ ! $# -eq 2 ] || [ $1 != "-m" ]
+then
+    # if the correct arguments aren't given we print the correct usage and exit
+    echo "usage: legit-commit -m commit-message" >&2
+    exit 1
+fi
+
+# we also need to make sure the index exists
+index=".legit/index"
+if [ ! -d $index ]
+then  
+    # if there is no index then we have no files to commit, so we just exit
+    echo "nothing to commit"
+    exit 0
+fi
+
+# after going through these initial checks, we can now create a subdirectory
+# within .legit to store all the commits (if it doesn't already exist)
+commits=".legit/commits"
+if [ ! -d "$commits" ]
+then
+    mkdir "$commits"
+fi
+
+# within this commits subdirectory, we then search through the names of all folders
+# to determine what number to assign to the current commit
+i=0
+for commitFolder in $commits/*
+do
+    # if we have found a folder, then we need to determine what number its commit
+    # was assigned
+    if [ -d "$commitFolder" ]
+    then
+        # we take the name of the folder and extract the number from it
+        num=`echo "$commitFolder" | sed 's/[^0-9]*//'`
+        
+        # if this commit's number is bigger than our current i, we increase i
+        if [ "$i" -le "$num" ]
+        then
+            i=$((num+1))
+        fi
+    else 
+        break
+    fi
+done
+
+# if this isn't the first commit (meaning i isn't 0), then we want to compare the files
+# in the index to the files in the previous commit.
+# if there are any changes, then we can commit. If there are no changes, there is nothing to commit.
+if [ $i -ne 0 ]
+then
+    # first we have to get the directory for the previous commit
+    prev=$((i-1))
+    previousCommit="$commits/$prev"
+    
+    # we now compare the contents of the previous commits folder with that of the index,
+    # and if there aren't differences (excluding the message file in the commit folder)
+    # then we don't need to commit
+    if diff -x 'message*.txt' $previousCommit $index >/dev/null
+    then
+        # since the two directories were found to be the same, we don't need to 
+        # commit, so we print a message and exit
+        echo "nothing to commit"
+        exit 0
+    fi
+fi
+
+# once we have reached this stage, we can create the subdirectory for this commit
+currentCommit="$commits/$i"
+mkdir "$currentCommit"
+
+# then we simply copy across all files in the index into this new folder
+for file in $index/*
+do
+    cp "$file" "$currentCommit"
+done
+
+#finally, we want to save a copy of the message in this folder as well
+echo "$2" > "$currentCommit/message$i.txt"
+
+# once successfully completed the commit, we want to print a success message and exit
+echo "Committed as commit $i"
+exit 0

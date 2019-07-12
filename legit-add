@@ -1,12 +1,5 @@
 #!/bin/dash
 
-# initial test to ensure the correct arguments are given
-if [ $# -eq 0 ]
-then
-    echo "usage: legit-add <filenames>" >&2
-    exit 1
-fi
-
 # before we can copy files into the index, we first need to check if the repo exists
 if [ ! -d ".legit" ]
 then  
@@ -15,19 +8,27 @@ then
     exit 1
 fi
 
+# we then test to ensure the correct arguments are given
+if [ $# -eq 0 ]
+then
+    # if the correct arguments aren't given, we print the correct usage and exit
+    echo "usage: legit-add <filenames>" >&2
+    exit 1
+fi
+
 # we also want to check that all the supplied command line arguments are real files
 for testFile in "$@"
 do
     if [ ! -e "$testFile" ]
     then
-        # if it doesn't exist, we give an error message and exit
+        # if a file doesn't exist, we give an error message and exit
         echo "legit-add: error: can not open '$testFile'" >&2
         exit 1
     fi
 done
 
-# now that we know that we can safely add all the files, we create an index subdirectory in .legit
-# (if it doesn't already exist)
+# once we know that we can add all the supplied files, we create an index subdirectory 
+# in .legit (if it doesn't already exist)
 index=".legit/index"
 if [ ! -d "$index" ]
 then
@@ -39,5 +40,7 @@ for file in "$@"
 do
     cp "$file" "$index/$file"
 done
+
+exit 0
 
 
