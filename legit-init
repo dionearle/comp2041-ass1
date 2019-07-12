@@ -7,7 +7,7 @@ then
     exit 1
 fi
 
-# we first test if the .legit directory alread exists
+# we first test if the .legit directory already exists
 if [ -d ".legit" ]
 then
     # if it does, then we simply print an error message to and exit
