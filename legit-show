@@ -1,0 +1,103 @@
+#!/bin/dash
+
+# we first need to ensure the .legit directory exists before we can continue
+if [ ! -d ".legit" ]
+then  
+    # if it doesn't exist, we print an error message and exit
+    echo "legit-show: error: no .legit directory containing legit repository exists" >&2
+    exit 1
+fi
+
+# next we need to make sure commits have been made before we can show them
+commits=".legit/commits"
+if [ ! -d $commits ]
+then  
+    # if there are no commits stored, then we simply print the error message and exit
+    echo "legit-show: error: your repository does not have any commits yet" >&2
+    exit 1
+fi
+
+# whilst this doesn't prove the arguments given are completely correct, this initial
+# check is necessary so we can safely test them later on
+if [ $# -ne 1 ]
+then
+    # if the correct number of arguments is not given, we print an error and exit
+    echo "usage: legit-show <commit>:<filename>" >&2
+    exit 1
+fi
+
+# we also want to test our argument doesn't start with a dash
+testDash=`echo $1 | egrep '^-'`
+if [ $testDash ] 
+then
+    echo "usage: legit-show <commit>:<filename>" >&2
+    exit 1
+fi
+
+# knowing there is one argument given, we now want to check that it includes a
+# semi-colon somewhere within it
+testSemiColon=`echo $1 | egrep '.*:.*'`
+if [ ! $testSemiColon ] 
+then
+    echo "legit-show: error: invalid object $1" >&2
+    exit 1
+fi
+
+# once we know there is a semi-colon, we can split the argument into the commit
+# and filename strings
+commit=`echo $1 | cut -d':' -f1`
+filename=`echo $1 | cut -d':' -f2-`
+
+# if a commit was provided in front of the semi-colon, we want to search through
+# all commits to ensure it exists.
+if [ $commit ]
+then
+    if [ ! -d "$commits/$commit" ]
+    then
+        echo "legit-show: error: unknown commit '$commit'" >&2
+        exit 1
+    fi
+fi
+
+# now that we know the specified commit exists (or we are using the index), we
+# want to check the filename provided is valid
+testValidFilename=`echo $filename | egrep '^[a-zA-Z0-9][a-zA-Z0-9.-_]*$'`
+if [ ! $testValidFilename ]
+then
+    # if the filename wasn't valid, we print an error message and exit
+    echo "legit-show: error: invalid filename '$filename'" >&2
+    exit 1
+fi
+
+# finally, we want to ensure this file exists in either the index or commit 
+# repository. if it does, then we can print the contents of the filename from 
+# its corresponding folder
+if [ $commit ]
+then
+    # we check that the file given exists in the specified commits folder
+    commitFile="$commits/$commit/$filename"
+    if [ ! -e "$commitFile" ]
+    then
+        # if the file isn't in the commit's folder, we print an error and exit
+        echo "legit-show: error: '$filename' not found in commit $commit" >&2
+        exit 1
+    else
+        # if the file did exist, then we can print its contents as required
+        cat "$commitFile"
+    fi
+# if a commit was not specified, then we instead search the index
+else
+    # we check that the file given exists in the index directory
+    indexFile=".legit/index/$filename"
+    if [ ! -e "$indexFile" ]
+    then
+        # if the file isn't in the index, we print an error and exit
+        echo "legit-show: error: '$filename' not found in index" >&2
+        exit 1
+    else
+        # if the file did exist, then we can print its contents as required
+        cat "$indexFile"
+    fi
+fi
+
+exit 0

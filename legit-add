@@ -16,9 +16,33 @@ then
     exit 1
 fi
 
-# we also want to check that all the supplied command line arguments are real files
+# for all arguments given, we want to ensure none of them start with a dash
+for testDashFile in "$@"
+do
+    # we simply take the filename and use egrep to make sure it starts with a dash
+    testDash=`echo $testDashFile | egrep '^-'`
+    if [ $testDash ] 
+    then
+        # if a file starting with a dash did exist, then we print an error and exit
+        echo "usage: legit-add <filenames>" >&2
+        exit 1
+    fi
+done
+
+
+# we also want to check that all the supplied command line arguments are valid files
 for testFile in "$@"
 do
+    # we first want to check the filenames are valid
+    testValidFilename=`echo $testFile | egrep '^[a-zA-Z0-9][a-zA-Z0-9.-_]*$'`
+    if [ ! $testValidFilename ]
+    then
+        # if the filename wasn't valid, we print an error message and exit
+        echo "legit-add: error: invalid filename '$testFile'" >&2
+        exit 1
+    fi
+    
+    # if the filename was valid, we also want to check that it exists
     if [ ! -e "$testFile" ]
     then
         # if a file doesn't exist, we give an error message and exit
