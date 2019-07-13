@@ -1,0 +1,56 @@
+#!/bin/dash
+
+# we first need to ensure the .legit directory exists before we can view commits
+if [ ! -d ".legit" ]
+then  
+    # if it doesn't exist, we print an error message and exit
+    echo "legit-log: error: no .legit directory containing legit repository exists" >&2
+    exit 1
+fi
+
+# next we need to make sure there are commits stored that we can log
+commits=".legit/commits"
+if [ ! -d $commits ]
+then  
+    # if there are no commits stored, then we simply print the error message and exit
+    echo "legit-log: error: your repository does not have any commits yet" >&2
+    exit 1
+fi
+
+# we also need to test the correct arguments are given
+if [ $# -ne 0 ]
+then
+    # if the correct arguments aren't given we print the correct usage and exit
+    echo "usage: legit-log" >&2
+    exit 1
+fi
+
+# since we want to print the commits in descending order of value, we first
+# need to find the largest value commit stored in the repository
+i=0
+for commitFolder in $commits/*
+do
+    # we want to extract the number from the current folders name
+    num=`echo "$commitFolder" | sed 's/[^0-9]*//'`
+        
+    # if this commit's number is bigger than our current i, we increase i
+    if [ "$i" -le "$num" ]
+    then
+        i=$((num))
+    fi
+done
+
+# now we know the maximum value for all our commits, we start at this value
+# and print all value message pairs until we reach the first commit made
+while [ $i -ge 0 ]
+do
+    # since we already have our commit number, we simply need to retrieve its
+    # corresponding message from the file
+    message=`cat $commits/$i/message$i.txt`
+    
+    # now we can log the commit number and commit message as required
+    echo "$i $message"
+    
+    # we decrement i to move onto the next commit to log
+    i=$((i-1))
+done
