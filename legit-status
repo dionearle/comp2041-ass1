@@ -1,0 +1,190 @@
+#!/bin/dash
+
+# we first need to ensure the .legit directory exists before we can continue
+if [ ! -d ".legit" ]
+then  
+    # if it doesn't exist, we print an error message and exit
+    echo "legit-status: error: no .legit directory containing legit repository exists" >&2
+    exit 1
+fi
+
+# next we need to make sure commits have been made before we show the status
+commits=".legit/commits"
+if [ ! -d $commits ]
+then  
+    # if there are no commits stored, then we simply print the error message and exit
+    echo "legit-show: error: your repository does not have any commits yet" >&2
+    exit 1
+fi
+
+# now, we want to find the last commit made in the repository
+i=0
+for commitFolder in $commits/*
+do
+    # we want to extract the number from the current folders name
+    num=`echo "$commitFolder" | sed 's/[^0-9]*//'`
+            
+    # if this commit's number is bigger than our current i, we increase i
+    if [ "$i" -le "$num" ]
+    then
+        i=$((num))
+    fi
+done
+
+# before we determine the status of all our files, we first want to get them all
+# sorted in the correct order. this involves going through the current directory,
+# index and repository and printing the name of all files within them into a 
+# temporary file
+
+# we first want to get all the files in the current directory
+for directoryFile in *
+do
+    # we first ensure the file exists (make sure current directory isn't empty)
+    if [ -e $directoryFile ]
+    then
+        # since we are only using this file to output the status temporarily, we
+        # don't want to include it in the status
+        if [ $directoryFile = "create_status.txt" ]
+        then
+            continue
+        fi  
+    
+        # we print the file name into the temporary file
+        echo "$directoryFile"
+    fi
+done >> "create_status.txt"
+
+# we then want to look at all files in the index
+index=".legit/index"
+for indexFile in $index/*
+do
+    # first we want to ensure the file exists (make sure index isn't empty)
+    if [ -e $indexFile ] 
+    then
+        # given the path of the file in the index, we want to retrieve its filename
+        indexName=`echo $indexFile | cut -d'/' -f3`
+    
+        # we then print this filename into the temporary file
+        echo "$indexName"  
+    fi
+done >> "create_status.txt"
+
+# finally we look at all files in the repository
+commit="$commits/$i"
+for repoFile in $commit/*
+do
+    # we first want to check the file exists (ensure repository isn't empty)
+    if [ -e $repoFile ]
+    then
+        # given the path of the file in the repository, we want to retrieve its filename
+        repoName=`echo $repoFile | cut -d'/' -f4`
+    
+        # if the file is the message for the commit, we don't want to show the status
+        # of this so we skip it
+        if [ $repoName = "message$i.txt" ]
+        then
+            continue
+        fi
+    
+        # we then print the filename into the temporary file
+        echo "$repoName"
+    fi
+done >> "create_status.txt"
+
+# once we have placed all the filenames into our temporary file, we want to sort
+# them alphabetically and remove any duplicates
+output=`cat "create_status.txt" | sort | uniq`
+
+# we can now remove the temporary file created to store the status of the files
+rm "create_status.txt"
+
+# now that we have all files to consider in order, we can determine their status
+# one by one
+for file in $output
+do
+    # to simplify our code, we setup variables for the filenames in both the
+    # index and repository
+    indexFile="$index/$file"
+    commitFile="$commit/$file"
+    
+    # our first check is to see if the file in the current directory isn't in
+    # the index
+    if [ -e $file ] && [ ! -e $indexFile ]
+    then
+        # if the file isn't in the index, then it is untracked
+        echo "$file - untracked"
+        continue
+    fi
+    
+    # next we check if the file exists in the repository, yet doesn't exist in
+    # the index or current directory
+    if [ ! -e $file ] && [ ! -e $indexFile ] && [ -e $commitFile ]
+    then
+        # if the file isn't in the index or current directory yet is in the 
+        #repository, then it is deleted
+        echo "$file - deleted"
+        continue
+    fi
+    
+    # now we check if the file doesn't exist in the current directory, but
+    # does exist in the index and repository
+    if [ ! -e $file ] && [ -e $indexFile ] && [ -e $commitFile ]
+    then
+        # if the file isn't in the current directory yet is in the 
+        #repository and index, then the file has been deleted
+        echo "$file - file deleted"
+        continue
+    fi
+    
+    # then we see if the file exists in the current directory and index, but
+    # does exist in the repository
+    if [ -e $file ] && [ -e $indexFile ] && [ ! -e $commitFile ]
+    then
+        # if the file is in the current directory and index yet not in the 
+        # repository, then it has been added to index
+        echo "$file - added to index"
+        continue
+    fi
+    
+    # now we want to see if the file in the current directory is the same as in
+    # the index and repository
+    if cmp -s $file $indexFile && cmp -s $indexFile $commitFile
+    then
+        # if the file is the same in the current directory, index and repository,
+        # then it is same as repo
+        echo "$file - same as repo"
+        continue
+    fi
+    
+    # next we check if the file in the current directory is different to the index,
+    # yet the index is the same as the repository
+    if ! cmp -s $file $indexFile && cmp -s $indexFile $commitFile
+    then
+        # if the file in index is the same as the repository yet different to the
+        # current directory, then it is not staged for commit
+        echo "$file - file changed, changes not staged for commit"
+        continue
+    fi
+    
+    # our next check is if the file in the directory is the same as the index,
+    # yet the index is different to the repository
+    if cmp -s $file $indexFile && ! cmp -s $indexFile $commitFile
+    then
+        # if the file in the index is the same as the current directory but different
+        # to the repository, then it is staged for commit
+        echo "$file - file changed, changes staged for commit"
+        continue
+    fi
+    
+    # finally, the last check is if the file in the current directory is different
+    # to the index and the index is different to the repository
+    if ! cmp -s $file $indexFile && ! cmp -s $indexFile $commitFile
+    then
+        # if the file in the index is different to both the current directory and
+        # the repository, then there are different changes staged for commit
+        echo "$file - file changed, different changes staged for commit"
+        continue
+    fi
+done
+
+exit 0

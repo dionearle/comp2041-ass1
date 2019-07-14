@@ -124,14 +124,14 @@ do
     if [ $force = "true" ] && [ $cached = "true" ]
     then
         rm "$indexFile"
-        exit 0
+        continue
     # if only the force option is true, then we remove the file from both the index
     # and the current directory
     elif [ $force = "true" ]
     then
         rm "$indexFile"
         rm "$removeFile"
-        exit 0
+        continue
     fi
     
     # here either the cached option or no options were set, meaning we need to
@@ -153,15 +153,12 @@ do
     
     # our first check ensures the file in the index is not different to the
     # file in the current directory and the repository
-    if ! cmp -s $commits/$i/$removeFile $indexFile
+    if ! cmp -s $commits/$i/$removeFile $indexFile && ! cmp -s $indexFile $removeFile
     then
-        if ! cmp -s $indexFile $removeFile
-        then
-            # since the two files we different, we cannot remove as this would cause
-            # the user to lose work, so we print an error and exit
-            echo "legit-rm: error: '$removeFile' in index is different to both working file and repository" >&2
-            exit 1
-        fi
+        # since the two files are different, we cannot remove as this would cause
+        # the user to lose work, so we print an error and exit
+        echo "legit-rm: error: '$removeFile' in index is different to both working file and repository" >&2
+        exit 1
     fi
     
     # we also have some checks which are not necessary if the cached option is used
@@ -171,7 +168,7 @@ do
         # to the file in the last made commit
         if ! cmp -s $commits/$i/$removeFile $indexFile
         then
-            # since the two files we different, we cannot remove as this would cause
+            # since the two files are different, we cannot remove as this would cause
             # the user to lose work, so we print an error and exit
             echo "legit-rm: error: '$removeFile' has changes staged in the index" >&2
             exit 1
@@ -181,7 +178,7 @@ do
         # the same as the file in the current directory
         if ! cmp -s $commits/$i/$removeFile $removeFile
         then
-            # since the two files we different, we cannot remove as this would cause
+            # since the two files are different, we cannot remove as this would cause
             # the user to lose work, so we print an error and exit
             echo "legit-rm: error: '$removeFile' in repository is different to working file" >&2
             exit 1
@@ -193,12 +190,12 @@ do
     if [ $cached = "true" ]
     then
         rm "$indexFile"
-        exit 0
     # otherwise no options were set, meaning we remove the file from both the
     # index and the current directory 
     else
         rm "$indexFile"
         rm "$removeFile"
-        exit 0
     fi
 done
+
+exit 0
