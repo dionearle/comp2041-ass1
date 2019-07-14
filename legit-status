@@ -137,7 +137,7 @@ do
     fi
     
     # then we see if the file exists in the current directory and index, but
-    # does exist in the repository
+    # doesn't exist in the repository
     if [ -e $file ] && [ -e $indexFile ] && [ ! -e $commitFile ]
     then
         # if the file is in the current directory and index yet not in the 
