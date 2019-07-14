@@ -45,9 +45,14 @@ do
     # if the filename was valid, we also want to check that it exists
     if [ ! -e "$testFile" ]
     then
-        # if a file doesn't exist, we give an error message and exit
-        echo "legit-add: error: can not open '$testFile'" >&2
-        exit 1
+        # if the file doesn't exist in the directory, we also check if it exists
+        # in the index.
+        if [ ! -e ".legit/index/$testFile" ]
+        then
+            # if a file doesn't exist, we give an error message and exit
+            echo "legit-add: error: can not open '$testFile'" >&2
+            exit 1
+        fi
     fi
 done
 
@@ -62,7 +67,14 @@ fi
 # for all the files given as arguments, we copy their contents into this index
 for file in "$@"
 do
-    cp "$file" "$index/$file"
+    # if the file exists in the directory, then we copy it across to the index
+    if [ -e "$file" ]
+    then
+        cp "$file" "$index/$file"
+    # if the file doesn't exist in the directory, then we want to remove it from the index
+    else
+        rm "$index/$file"
+    fi
 done
 
 exit 0

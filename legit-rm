@@ -1,0 +1,204 @@
+#!/bin/dash
+
+# we first need to ensure the .legit directory exists before we can continue
+if [ ! -d ".legit" ]
+then  
+    # if it doesn't exist, we print an error message and exit
+    echo "legit-rm: error: no .legit directory containing legit repository exists" >&2
+    exit 1
+fi
+
+# next we need to make sure commits have been made before we can remove files
+commits=".legit/commits"
+if [ ! -d $commits ]
+then  
+    # if there are no commits stored, then we simply print the error message and exit
+    echo "legit-rm: error: your repository does not have any commits yet" >&2
+    exit 1
+fi
+
+# we then test to ensure the correct arguments are given. firstly we ensure there
+# is at least one argument given
+if [ $# -ge 1 ]
+then
+    # first we check for the case where both options are used, in the form
+    # legit-rm --force --cached filenames
+    if [ $# -ge 3 ] && [ $1 = "--force" ] && [ $2 = "--cached" ]
+    then
+        force="true"
+        cached="true"
+    # we now check if it matches the form legit-rm --force filenames  
+    elif [ $# -ge 2 ] && [ $1 = "--force" ]
+    then
+        force="true"
+        cached="false"
+    # next we check for the form legit-rm --cached filanames
+    elif [ $# -ge 2 ] && [ $1 = "--cached" ]
+    then
+        force="false"
+        cached="true"
+    #if it was none of the above, then the form is legit-rm filenames
+    else
+        force="false"
+        cached="false"
+    fi  
+else
+    # if there is not more than one argument, we print the correct usage and exit
+    echo "usage: legit-rm [--force] [--cached] <filenames>" >&2
+    exit 1
+fi
+
+# we also want to test all of our arguments don't start with a dash
+i=1
+for testDashFile in "$@"
+do
+    # we simply take the filename and use egrep to make sure it starts with a dash
+    testDash=`echo $testDashFile | egrep '^-'`
+    if [ $testDash ] 
+    then
+        if [ $force = "true" ] && [ $i -eq 1 ]
+        then
+            :
+        elif [ $cached = "true" ] && [ $i -eq 1 ]
+        then
+            :
+        elif [ $force = "true" ] && [ $cached = "true" ] && [ $i -eq 2 ]
+        then
+            :
+        else
+            # if a file starting with a dash did exist, then we print an error and exit
+            echo "usage: legit-rm [--force] [--cached] <filenames>" >&2
+            exit 1
+        fi
+    fi
+    i=$((i+1))
+done
+
+# for any files provided, we want to ensure they are valid
+index=".legit/index"
+for testValidFile in "$@"
+do
+    # we want to skip over any options provided, as they are not filenames
+    if [ $testValidFile = "--force" ]
+    then
+        continue
+    elif [ $testValidFile = "--cached" ]
+    then
+        continue
+    fi
+    
+    # our first check the filename is valid
+    testValidFilename=`echo $testValidFile | egrep '^[a-zA-Z0-9][a-zA-Z0-9.-_]*$'`
+    if [ ! $testValidFilename ]
+    then
+        # if the filename wasn't valid, we print an error message and exit
+        echo "legit-rm: error: invalid filename '$testValidFile'" >&2
+        exit 1
+    fi
+    
+    # if the filename was valid, we also want to check that it exists
+    if [ ! -e "$index/$testValidFile" ]
+    then
+        # if a file doesn't exist, we give an error message and exit
+        echo "legit-rm: error: '$testValidFile' is not in the legit repository" >&2
+        exit 1
+    fi
+done
+
+# now we can begin removing the files specified
+for removeFile in "$@"
+do
+    # we want to skip over any options provided, as these are not files to remove
+    if [ $removeFile = "--force" ]
+    then
+        continue
+    elif [ $removeFile = "--cached" ]
+    then
+        continue
+    fi
+    
+    # here we are simply getting the location of the file in the index
+    indexFile="$index/$removeFile"
+    
+    # if the force and the cached option is set, then we remove the file from the index
+    if [ $force = "true" ] && [ $cached = "true" ]
+    then
+        rm "$indexFile"
+        exit 0
+    # if only the force option is true, then we remove the file from both the index
+    # and the current directory
+    elif [ $force = "true" ]
+    then
+        rm "$indexFile"
+        rm "$removeFile"
+        exit 0
+    fi
+    
+    # here either the cached option or no options were set, meaning we need to
+    # do some checks to ensure work is not lost
+    
+    # to start, we first need to find the last made commit
+    i=0
+    for commitFolder in $commits/*
+    do
+        # we want to extract the number from the current folders name
+        num=`echo "$commitFolder" | sed 's/[^0-9]*//'`
+            
+        # if this commit's number is bigger than our current i, we increase i
+        if [ "$i" -le "$num" ]
+        then
+            i=$((num))
+        fi
+    done
+    
+    # our first check ensures the file in the index is not different to the
+    # file in the current directory and the repository
+    if ! cmp -s $commits/$i/$removeFile $indexFile
+    then
+        if ! cmp -s $indexFile $removeFile
+        then
+            # since the two files we different, we cannot remove as this would cause
+            # the user to lose work, so we print an error and exit
+            echo "legit-rm: error: '$removeFile' in index is different to both working file and repository" >&2
+            exit 1
+        fi
+    fi
+    
+    # we also have some checks which are not necessary if the cached option is used
+    if [ $cached = "false" ]
+    then      
+        # our next check involves ensuring that the file in the index is not different
+        # to the file in the last made commit
+        if ! cmp -s $commits/$i/$removeFile $indexFile
+        then
+            # since the two files we different, we cannot remove as this would cause
+            # the user to lose work, so we print an error and exit
+            echo "legit-rm: error: '$removeFile' has changes staged in the index" >&2
+            exit 1
+        fi
+        
+        # we have another check which ensures that the file in the repository is
+        # the same as the file in the current directory
+        if ! cmp -s $commits/$i/$removeFile $removeFile
+        then
+            # since the two files we different, we cannot remove as this would cause
+            # the user to lose work, so we print an error and exit
+            echo "legit-rm: error: '$removeFile' in repository is different to working file" >&2
+            exit 1
+        fi
+    fi
+    
+    # if the cached option is true, then the file is removed only from the
+    # index and not the current directory.
+    if [ $cached = "true" ]
+    then
+        rm "$indexFile"
+        exit 0
+    # otherwise no options were set, meaning we remove the file from both the
+    # index and the current directory 
+    else
+        rm "$indexFile"
+        rm "$removeFile"
+        exit 0
+    fi
+done

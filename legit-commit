@@ -45,8 +45,14 @@ then
         # we can copy it from our current directory
         dirFile=`echo $indexFile | cut -d'/' -f3`
         
-        # now we can simply copy its contents into the index
-        cp "$dirFile" "$indexFile"
+        # if the file exists in the directory, we simply copy its contents into the index
+        if [ -e "$dirFile" ]
+        then
+            cp "$dirFile" "$indexFile"
+        # if the file doesn't exist in the directory, then we want to remove it from the index
+        else
+            rm "$indexFile"
+        fi
     done
 fi
 
@@ -108,7 +114,11 @@ mkdir "$currentCommit"
 # then we simply copy across all files in the index into this new folder
 for file in $index/*
 do
-    cp "$file" "$currentCommit"
+    # if the file exists in the index, we want to copy it into the repository
+    if [ -e $file ]
+    then
+        cp "$file" "$currentCommit"
+    fi
 done
 
 # finally, we want to save a copy of the message in this folder as well
